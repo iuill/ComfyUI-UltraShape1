@@ -113,6 +113,18 @@ Core refinement node - refine coarse mesh using image guidance.
 | 768 | ~32GB |
 | 1024 | ~48GB+ |
 
+### UltraShape MESH To Trimesh
+Convert a native ComfyUI `MESH` into a `TRIMESH`. Connect its output to
+**UltraShape Load Coarse Mesh From Trimesh** to use meshes produced by ComfyUI's
+built-in 3D nodes without saving and reloading a file.
+
+| Parameter | Description |
+|-----------|-------------|
+| mesh | Native ComfyUI `MESH` input |
+| batch_index | Mesh batch item to convert (default: 0) |
+
+Vertex positions, triangle faces, and optional vertex colors are preserved.
+
 ### UltraShape Save GLB/OBJ
 Save refined mesh to file.
 

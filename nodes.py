@@ -743,6 +743,116 @@ class UltraShapeOutputToTrimesh:
 
 
 # ============================================================================
+# Node: ComfyUI MESH To Trimesh
+# ============================================================================
+
+class UltraShapeMeshToTrimesh:
+    """Convert a native ComfyUI MESH batch item to a trimesh.Trimesh."""
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "mesh": ("MESH",),
+            },
+            "optional": {
+                "batch_index": ("INT", {"default": 0, "min": 0, "max": 4095, "step": 1,
+                    "tooltip": "Batch item to convert when the MESH contains multiple meshes"}),
+            },
+        }
+
+    RETURN_TYPES = ("TRIMESH",)
+    RETURN_NAMES = ("trimesh",)
+    FUNCTION = "convert"
+    CATEGORY = "UltraShape/Loaders"
+
+    @staticmethod
+    def _select_batch(value, batch_index, name):
+        """Select one item from a native batched MESH tensor.
+
+        The unbatched fallback keeps the node usable with MESH implementations
+        from older custom nodes which expose (N, C) arrays directly.
+        """
+        ndim = getattr(value, "ndim", None)
+        if ndim == 2:
+            if batch_index != 0:
+                raise IndexError(f"[UltraShape] {name} is not batched; batch_index must be 0")
+            return value
+        if ndim != 3:
+            shape = getattr(value, "shape", None)
+            raise ValueError(f"[UltraShape] Expected {name} shape (B, N, C) or (N, C), got {shape}")
+        if batch_index >= value.shape[0]:
+            raise IndexError(
+                f"[UltraShape] batch_index {batch_index} is out of range for MESH batch size {value.shape[0]}"
+            )
+        return value[batch_index]
+
+    @staticmethod
+    def _to_numpy(value, dtype):
+        if hasattr(value, "detach"):
+            value = value.detach()
+        if hasattr(value, "cpu"):
+            value = value.cpu()
+        return np.asarray(value, dtype=dtype)
+
+    def convert(self, mesh, batch_index=0):
+        import trimesh as tm
+
+        if not hasattr(mesh, "vertices") or not hasattr(mesh, "faces"):
+            raise TypeError("[UltraShape] MESH must expose vertices and faces")
+
+        vertices = self._select_batch(mesh.vertices, batch_index, "vertices")
+        faces = self._select_batch(mesh.faces, batch_index, "faces")
+
+        # Native ComfyUI MESH batches can be padded. Respect the real lengths
+        # when the producer supplied them.
+        vertex_counts = getattr(mesh, "vertex_counts", None)
+        face_counts = getattr(mesh, "face_counts", None)
+        if vertex_counts is not None:
+            vertices = vertices[:int(vertex_counts[batch_index].item())]
+        if face_counts is not None:
+            faces = faces[:int(face_counts[batch_index].item())]
+
+        vertices = self._to_numpy(vertices, np.float64)
+        faces = self._to_numpy(faces, np.int64)
+
+        if vertices.ndim != 2 or vertices.shape[1] != 3 or len(vertices) == 0:
+            raise ValueError(f"[UltraShape] Expected non-empty vertices with shape (N, 3), got {vertices.shape}")
+        if faces.ndim != 2 or faces.shape[1] != 3 or len(faces) == 0:
+            raise ValueError(f"[UltraShape] Expected non-empty triangle faces with shape (M, 3), got {faces.shape}")
+        if faces.min() < 0 or faces.max() >= len(vertices):
+            raise ValueError(
+                f"[UltraShape] Face index out of range for {len(vertices)} vertices: "
+                f"min={faces.min()}, max={faces.max()}"
+            )
+
+        vertex_colors = getattr(mesh, "vertex_colors", None)
+        colors = None
+        if vertex_colors is not None:
+            colors = self._select_batch(vertex_colors, batch_index, "vertex_colors")
+            colors = colors[:len(vertices)]
+            colors = self._to_numpy(colors, np.float64)
+            if colors.shape[0] != len(vertices) or colors.ndim != 2 or colors.shape[1] not in (3, 4):
+                raise ValueError(
+                    f"[UltraShape] Expected vertex_colors shape ({len(vertices)}, 3 or 4), got {colors.shape}"
+                )
+            if colors.size and colors.max() <= 1.0:
+                colors = np.rint(np.clip(colors, 0.0, 1.0) * 255.0).astype(np.uint8)
+            else:
+                colors = np.clip(colors, 0.0, 255.0).astype(np.uint8)
+
+        trimesh = tm.Trimesh(
+            vertices=vertices,
+            faces=faces,
+            vertex_colors=colors,
+            process=False,
+        )
+        print(f"[UltraShape] Converted ComfyUI MESH batch {batch_index} to TRIMESH "
+              f"(vertices={len(trimesh.vertices)}, faces={len(trimesh.faces)})")
+        return (trimesh,)
+
+
+# ============================================================================
 # Node Registration
 # ============================================================================
 
@@ -754,6 +864,7 @@ NODE_CLASS_MAPPINGS = {
     "UltraShapeLoadMesh": UltraShapeLoadMesh,
     "UltraShapeSaveMesh": UltraShapeSaveMesh,
     "UltraShapeOutputToTrimesh": UltraShapeOutputToTrimesh,
+    "UltraShapeMeshToTrimesh": UltraShapeMeshToTrimesh,
     "UltraShapeRefine": UltraShapeRefine,
     "UltraShapeSaveGLB": UltraShapeSaveGLB,
     "UltraShapeConvertToGLB": UltraShapeConvertToGLB,
@@ -767,6 +878,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "UltraShapeLoadMesh": "UltraShape Load Mesh",
     "UltraShapeSaveMesh": "UltraShape Save Mesh",
     "UltraShapeOutputToTrimesh": "UltraShape Output To Trimesh",
+    "UltraShapeMeshToTrimesh": "UltraShape MESH To Trimesh",
     "UltraShapeRefine": "UltraShape Refine",
     "UltraShapeSaveGLB": "UltraShape Save GLB/OBJ",
     "UltraShapeConvertToGLB": "UltraShape Convert To GLB/OBJ",
