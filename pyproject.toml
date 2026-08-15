@@ -15,9 +15,9 @@ dependencies = [
 rembg = ["rembg"]
 
 [project.urls]
-Repository = "https://github.com/jtydhr88/ComfyUI-UltraShape1"
+Repository = "https://github.com/iuill/ComfyUI-UltraShape1"
 
 [tool.comfy]
-PublisherId = "jtydhr88"
-DisplayName = "Comfyui UltraShape1"
+PublisherId = "iuill"
+DisplayName = "Comfyui UltraShape1 custom"
 Icon = ""
