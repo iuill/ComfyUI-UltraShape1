@@ -100,6 +100,11 @@ Core refinement node - refine coarse mesh using image guidance.
 | remove_bg | Remove image background before processing |
 | num_chunks | Number of chunks for processing (default: 1, higher = less VRAM) |
 
+Outputs both the legacy `ULTRASHAPE_OUTPUT` (`refined_mesh`) and a native ComfyUI
+`MESH` (`mesh`). Existing workflows keep using the first output unchanged, while
+the native output can connect directly to nodes that accept ComfyUI's standard
+`MESH` type.
+
 **VRAM Optimization Tips**:
 - Increase `num_chunks` to reduce VRAM usage during refinement
 - Enable `low_vram` in Load Model node

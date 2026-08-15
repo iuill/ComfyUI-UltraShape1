@@ -343,8 +343,8 @@ class UltraShapeRefine:
             }
         }
 
-    RETURN_TYPES = ("ULTRASHAPE_OUTPUT",)
-    RETURN_NAMES = ("refined_mesh",)
+    RETURN_TYPES = ("ULTRASHAPE_OUTPUT", "MESH")
+    RETURN_NAMES = ("refined_mesh", "mesh")
     FUNCTION = "refine"
     CATEGORY = "UltraShape"
 
@@ -409,8 +409,20 @@ class UltraShapeRefine:
             latents=latents
         )
 
+        # Native ComfyUI MESH tensors are batched. Keep the original
+        # ULTRASHAPE_OUTPUT as the first output for backwards compatibility,
+        # and expose the same geometry in ComfyUI's standard format as well.
+        comfy_mesh = Types.MESH(
+            vertices=torch.as_tensor(
+                np.array(output_mesh.vertices, dtype=np.float32, copy=True)
+            ).unsqueeze(0),
+            faces=torch.as_tensor(
+                np.array(output_mesh.faces, dtype=np.int64, copy=True)
+            ).unsqueeze(0),
+        )
+
         print(f"[UltraShape] Refinement complete: vertices={len(output_mesh.vertices)}, faces={len(output_mesh.faces)}")
-        return (wrapper,)
+        return (wrapper, comfy_mesh)
 
 
 # ============================================================================
